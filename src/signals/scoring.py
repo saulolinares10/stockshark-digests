@@ -1,3 +1,15 @@
+from __future__ import annotations
+from dataclasses import dataclass
+from typing import Optional
+import pandas as pd
+
+from src.signals.indicators import (
+    sma,
+    daily_range,
+    drawdown_from_recent_high,
+    slope,
+)
+
 def compute_signals(
     symbol: str,
     df: pd.DataFrame,
