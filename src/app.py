@@ -61,15 +61,19 @@ def main() -> None:
                 continue
 
             sig = compute_signals(
-                symbol=s,
-                df=hist.df,
-                trend_ma_days=int(th["trend_ma_days"]),
-                momentum_days=int(th["momentum_days"]),
-                drawdown_days=int(th["drawdown_days"]),
-                drawdown_warn_pct=float(th["drawdown_warn_pct"]),
-                drawdown_critical_pct=float(th["drawdown_critical_pct"]),
-                vol_spike_multiplier=float(th["vol_spike_multiplier"]),
-            )
+    symbol=s,
+    df=hist.df,
+    trend_ma_days=int(th["trend_ma_days"]),
+    momentum_days=int(th["momentum_days"]),
+    drawdown_days=int(th["drawdown_days"]),
+    drawdown_warn_pct=float(th["drawdown_warn_pct"]),
+    drawdown_critical_pct=float(th["drawdown_critical_pct"]),
+    vol_spike_multiplier=float(th["vol_spike_multiplier"]),
+    require_conditions_for_warn=int(th.get("require_conditions_for_warn", 2)),
+    vol_spike_is_info_only=bool(th.get("vol_spike_is_info_only", True)),
+    momentum_warn_pct=float(th.get("momentum_warn_pct", -0.06)),
+)
+
             if not sig:
                 out.append({"symbol": s, "close": "n/a", "risk": "n/a", "reason": "Signal computation failed"})
                 continue
