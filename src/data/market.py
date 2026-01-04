@@ -1,40 +1,58 @@
 from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-import time
-import pandas as pd
 from typing import Dict, List, Optional
+
+import pandas as pd
+import yfinance as yf
+
 from src.data.finnhub_client import FinnhubClient
 
 @dataclass
 class PriceHistory:
     symbol: str
-    df: pd.DataFrame
+    df: pd.DataFrame  # columns: t, o, h, l, c, v
 
-def _to_unix(dt: datetime) -> int:
-    return int(time.mktime(dt.timetuple()))
-
-def fetch_daily_history(client: FinnhubClient, symbol: str, lookback_days: int = 120) -> Optional[PriceHistory]:
+def fetch_daily_history(_client: FinnhubClient, symbol: str, lookback_days: int = 120) -> Optional[PriceHistory]:
+    # Use yfinance (more reliable for daily candles)
     end = datetime.utcnow()
     start = end - timedelta(days=lookback_days + 10)
-    data = client.candles(symbol=symbol, resolution="D", _from=_to_unix(start), to=_to_unix(end))
 
-    if not data or data.get("s") != "ok":
+    df = yf.download(
+        tickers=symbol,
+        start=start.date().isoformat(),
+        end=end.date().isoformat(),
+        interval="1d",
+        auto_adjust=False,
+        progress=False,
+        threads=False,
+    )
+
+    if df is None or df.empty:
         return None
 
-    df = pd.DataFrame({
-        "t": pd.to_datetime(data["t"], unit="s", utc=True),
-        "o": data["o"],
-        "h": data["h"],
-        "l": data["l"],
-        "c": data["c"],
-        "v": data["v"],
-    }).sort_values("t")
+    # yfinance returns index as datetime
+    df = df.reset_index()
+    # normalize columns
+    df = df.rename(columns={
+        "Date": "t",
+        "Open": "o",
+        "High": "h",
+        "Low": "l",
+        "Close": "c",
+        "Volume": "v",
+    })
 
-    df = df.drop_duplicates(subset=["t"], keep="last").reset_index(drop=True)
+    # Some tickers may come with timezone-aware timestamps; keep it simple
+    df["t"] = pd.to_datetime(df["t"], utc=True, errors="coerce")
+
+    # Drop rows with missing close
+    df = df.dropna(subset=["c"]).sort_values("t").reset_index(drop=True)
+
     if len(df) < 30:
         return None
-    return PriceHistory(symbol=symbol, df=df)
+
+    return PriceHistory(symbol=symbol, df=df[["t", "o", "h", "l", "c", "v"]])
 
 def fetch_quotes(client: FinnhubClient, symbols: List[str]) -> Dict[str, Dict]:
     out: Dict[str, Dict] = {}
