@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
 import pandas as pd
-import yfinance as yf
+from pandas_datareader import data as pdr
 
 from src.data.finnhub_client import FinnhubClient
 
@@ -13,27 +13,30 @@ class PriceHistory:
     symbol: str
     df: pd.DataFrame  # columns: t, o, h, l, c, v
 
-def fetch_daily_history(_client: FinnhubClient, symbol: str, lookback_days: int = 120) -> Optional[PriceHistory]:
-    # Use yfinance (more reliable for daily candles)
-    end = datetime.utcnow()
-    start = end - timedelta(days=lookback_days + 10)
+def _to_stooq_symbol(symbol: str) -> str:
+    # Stooq uses ".us" for US stocks/ETFs
+    # Example: AMZN -> amzn.us
+    return f"{symbol.lower()}.us"
 
-    df = yf.download(
-        tickers=symbol,
-        start=start.date().isoformat(),
-        end=end.date().isoformat(),
-        interval="1d",
-        auto_adjust=False,
-        progress=False,
-        threads=False,
-    )
+def fetch_daily_history(_client: FinnhubClient, symbol: str, lookback_days: int = 120) -> Optional[PriceHistory]:
+    end = datetime.utcnow().date()
+    start = (datetime.utcnow() - timedelta(days=lookback_days + 30)).date()
+
+    stooq_symbol = _to_stooq_symbol(symbol)
+
+    try:
+        df = pdr.DataReader(stooq_symbol, "stooq", start, end)
+    except Exception:
+        return None
 
     if df is None or df.empty:
         return None
 
-    # yfinance returns index as datetime
-    df = df.reset_index()
-    # normalize columns
+    # Stooq returns newest-first; reverse it
+    df = df.sort_index().reset_index()
+
+    # Normalize columns to match our pipeline
+    # Stooq columns: Date, Open, High, Low, Close, Volume
     df = df.rename(columns={
         "Date": "t",
         "Open": "o",
@@ -43,11 +46,8 @@ def fetch_daily_history(_client: FinnhubClient, symbol: str, lookback_days: int 
         "Volume": "v",
     })
 
-    # Some tickers may come with timezone-aware timestamps; keep it simple
     df["t"] = pd.to_datetime(df["t"], utc=True, errors="coerce")
-
-    # Drop rows with missing close
-    df = df.dropna(subset=["c"]).sort_values("t").reset_index(drop=True)
+    df = df.dropna(subset=["c"]).reset_index(drop=True)
 
     if len(df) < 30:
         return None
@@ -62,3 +62,4 @@ def fetch_quotes(client: FinnhubClient, symbols: List[str]) -> Dict[str, Dict]:
         except Exception:
             out[s] = {}
     return out
+
