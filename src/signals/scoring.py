@@ -1,14 +1,19 @@
 from __future__ import annotations
+
 from dataclasses import dataclass
 from typing import Optional
 import pandas as pd
 
-from src.signals.indicators import (
-    sma,
-    daily_range,
-    drawdown_from_recent_high,
-    slope,
-)
+from src.signals.indicators import sma, daily_range, drawdown_from_recent_high, slope
+
+
+@dataclass
+class SignalResult:
+    symbol: str
+    last_close: float
+    risk_level: str   # "OK" | "WARN" | "CRITICAL"
+    reason: str
+
 
 def compute_signals(
     symbol: str,
@@ -58,37 +63,35 @@ def compute_signals(
     if vol_spike:
         conds.append("vol_spike")
 
-    # Risk determination
-    reasons = []
-    risk = "OK"
-
+    # CRITICAL logic
     if dd >= drawdown_critical_pct:
-        risk = "CRITICAL"
-        reasons.append(f"Drawdown {dd:.1%} from recent {drawdown_days}D high (critical)")
+        reasons = [f"Drawdown {dd:.1%} from recent {drawdown_days}D high (critical)"]
         if "trend_break" in conds:
-            reasons.append("Trend is weakening (below MA + negative slope)")
-        if momentum <= momentum_warn_pct:
+            reasons.append("Trend weakening (below MA + negative slope)")
+        if "momentum" in conds:
             reasons.append(f"Momentum {momentum:.1%} over {momentum_days}D")
         if vol_spike:
             reasons.append("Volatility spike vs recent average")
-        reason = "; ".join(reasons)
-        return SignalResult(symbol=symbol, last_close=last_close, risk_level=risk, reason=reason)
+        return SignalResult(symbol=symbol, last_close=last_close, risk_level="CRITICAL", reason="; ".join(reasons))
 
-    # WARN only if enough conditions (reduces noise)
+    # WARN only if enough conditions (noise reduction)
     warn_conds = [c for c in conds if not (vol_spike_is_info_only and c == "vol_spike")]
     if len(warn_conds) >= require_conditions_for_warn:
-        risk = "WARN"
+        reasons = []
         if "trend_break" in warn_conds:
             reasons.append("Trend weakening (below MA + negative slope)")
         if "drawdown" in warn_conds:
             reasons.append(f"Drawdown {dd:.1%} from recent {drawdown_days}D high")
         if "momentum" in warn_conds:
             reasons.append(f"Momentum {momentum:.1%} over {momentum_days}D")
+        return SignalResult(symbol=symbol, last_close=last_close, risk_level="WARN", reason="; ".join(reasons))
 
-    # INFO note (vol spike alone)
-    if risk == "OK" and vol_spike:
-        risk = "OK"
+    # OK (optionally include info)
+    reasons = []
+    if vol_spike:
         reasons.append("Volatility spike (info)")
+    reason = "; ".join(reasons) if reasons else "No major risk flags from the configured rules"
+    return SignalResult(symbol=symbol, last_close=last_close, risk_level="OK", reason=reason)
 
     reason = "; ".join(reasons) if reasons else "No major risk flags from the configured rules"
     return SignalResult(symbol=symbol, last_close=last_close, risk_level=risk, reason=reason)
