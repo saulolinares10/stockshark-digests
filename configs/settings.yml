@@ -6,19 +6,16 @@ thresholds:
   trend_ma_days: 50
   momentum_days: 20
   drawdown_days: 20
-  drawdown_warn_pct: 0.10
-  drawdown_critical_pct: 0.18
+  drawdown_warn_pct: 0.12
+  drawdown_critical_pct: 0.20
   vol_spike_multiplier: 1.8
-    require_conditions_for_warn: 2
+  require_conditions_for_warn: 2
   vol_spike_is_info_only: true
   momentum_warn_pct: -0.06
-
 
 wording:
   warn_label: "Risk flag"
   critical_label: "High risk flag"
   suggested_action_warn: "Consider tightening risk controls (smaller size, tighter stop, wait for confirmation)."
   suggested_action_critical: "Consider trimming exposure or waiting for a reversal; avoid averaging down blindly."
-    drawdown_warn_pct: 0.12
-  drawdown_critical_pct: 0.20
 
