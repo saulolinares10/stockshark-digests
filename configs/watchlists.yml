@@ -1,0 +1,22 @@
+core:
+  - SPY   # or VOO
+conviction:
+  - AMZN
+  - GOOGL
+  - AMD
+risky_watchlist:
+  - TSLA
+  - NVDA
+  - META
+  - SMCI
+  - ARM
+  - MU
+  - PLTR
+  - COIN
+  - SHOP
+  - MRNA
+  - NVAX
+signals_etfs:
+  - QQQ
+  - IWM
+  - XBI
