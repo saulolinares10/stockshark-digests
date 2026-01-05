@@ -19,3 +19,9 @@ wording:
   suggested_action_warn: "Consider tightening risk controls (smaller size, tighter stop, wait for confirmation)."
   suggested_action_critical: "Consider trimming exposure or waiting for a reversal; avoid averaging down blindly."
 
+news:
+  max_items: 4
+
+social:
+  instagram_handle: "stocksharknews"
+
