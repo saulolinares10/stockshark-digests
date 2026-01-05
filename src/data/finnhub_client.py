@@ -19,6 +19,17 @@ class FinnhubClient:
         r = requests.get(url, params=params, timeout=self.timeout)
         r.raise_for_status()
         return r.json()
+        
+    def company_profile2(self, symbol: str) -> Dict[str, Any]:
+        return self._get("/stock/profile2", {"symbol": symbol})
+
+    def company_basic_financials(self, symbol: str) -> Dict[str, Any]:
+        # Contains "metric" dict with many ratios + per-share metrics, etc.
+        return self._get("/stock/metric", {"symbol": symbol, "metric": "all"})
+
+    def company_news(self, symbol: str, _from: str, to: str) -> Any:
+        # _from, to format YYYY-MM-DD
+        return self._get("/company-news", {"symbol": symbol, "from": _from, "to": to})
 
     def quote(self, symbol: str) -> Dict[str, Any]:
         return self._get("/quote", {"symbol": symbol})
