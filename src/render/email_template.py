@@ -12,14 +12,10 @@ def render_email(subject_dt: datetime, tz_name: str, sections: Dict[str, Any]) -
             return "<p><em>No data</em></p>"
         header = rows[0]
         body = rows[1:]
-        th = "".join(
-            [f"<th style='text-align:left;padding:8px;border-bottom:1px solid #ccc'>{h}</th>" for h in header]
-        )
+        th = "".join([f"<th style='text-align:left;padding:8px;border-bottom:1px solid #ccc'>{h}</th>" for h in header])
         trs = []
         for r in body:
-            tds = "".join(
-                [f"<td style='padding:8px;border-bottom:1px solid #eee;vertical-align:top'>{c}</td>" for c in r]
-            )
+            tds = "".join([f"<td style='padding:8px;border-bottom:1px solid #eee;vertical-align:top'>{c}</td>" for c in r])
             trs.append(f"<tr>{tds}</tr>")
         return f"""
         <table style="border-collapse:collapse;width:100%;font-family:Arial,sans-serif;font-size:14px;color:#000">
@@ -28,129 +24,129 @@ def render_email(subject_dt: datetime, tz_name: str, sections: Dict[str, Any]) -
         </table>
         """
 
-    # -------- Market pulse --------
+    # Market pulse
     market_rows = [["Symbol", "Last", "1D %", "Notes"]]
     for item in sections.get("market_pulse", []):
         market_rows.append([item["symbol"], item["last"], item["chg"], item["note"]])
 
-    # -------- Top focus --------
+    # Top focus
     top_focus = sections.get("top_focus", [])
     if top_focus:
-        top_focus_html = "<ul>" + "".join(
-            [
-                f"<li><strong>{x['symbol']}</strong> — <strong>{x['risk']}</strong> — {x['reason']}</li>"
-                for x in top_focus
-            ]
+        top_focus_html = "<ul style='margin:8px 0 0 18px'>" + "".join(
+            [f"<li><strong>{x.get('symbol','')}</strong> — <strong>{x.get('risk','')}</strong> — {x.get('reason','')}</li>" for x in top_focus]
         ) + "</ul>"
     else:
         top_focus_html = "<p><em>No high-priority alerts today.</em></p>"
 
-    # -------- Holdings --------
+    # Holdings
     holdings_rows = [["Symbol", "Close", "Risk", "Summary"]]
     for s in sections.get("holdings", []):
-        holdings_rows.append([s["symbol"], s["close"], s["risk"], s["reason"]])
+        holdings_rows.append([s.get("symbol",""), s.get("close",""), s.get("risk",""), s.get("reason","")])
 
-    # -------- Risky watchlist --------
+    # Risky watchlist
     risky_rows = [["Symbol", "Close", "Risk", "Summary"]]
     for s in sections.get("risky", []):
-        risky_rows.append([s["symbol"], s["close"], s["risk"], s["reason"]])
+        risky_rows.append([s.get("symbol",""), s.get("close",""), s.get("risk",""), s.get("reason","")])
 
-    # -------- Research pack --------
+    # Research pack cards (black text for readability)
     research_symbols = sections.get("research_symbols", [])
     links_by_symbol = sections.get("links_by_symbol", {})
     fundamentals_by_symbol = sections.get("fundamentals_by_symbol", {})
     news_by_symbol = sections.get("news_by_symbol", {})
 
+    def news_list(items: List[Dict[str, str]]) -> str:
+        if not items:
+            return "<p style='margin:6px 0 0 0;color:#666'><em>No items found.</em></p>"
+        lis = []
+        for it in items[:5]:
+            t = it.get("title", "")
+            url = it.get("link", "")
+            src = it.get("source", "")
+            src_txt = f" <span style='color:#666'>({src})</span>" if src else ""
+            if t and url:
+                lis.append(f"<li><a href='{url}' target='_blank' rel='noopener noreferrer'>{t}</a>{src_txt}</li>")
+        return "<ul style='margin:6px 0 0 18px'>" + "".join(lis) + "</ul>"
+
     cards = []
     for sym in research_symbols:
-        links = links_by_symbol.get(sym, {})
-        f = fundamentals_by_symbol.get(sym, {})
-        news = news_by_symbol.get(sym, {})
+        links = links_by_symbol.get(sym, {}) or {}
+        f = fundamentals_by_symbol.get(sym, {}) or {}
+        n = news_by_symbol.get(sym, {}) or {}
+        cnbc_items = n.get("cnbc", []) or []
+        buzz_items = n.get("buzz", []) or []
 
-        links_html = " | ".join(
-            [f"<a href='{u}' target='_blank'>{k}</a>" for k, u in links.items()]
-        )
+        links_html = " | ".join([f"<a href='{url}' target='_blank' rel='noopener noreferrer'>{name}</a>" for name, url in links.items()]) or "<em>No links</em>"
 
         fundamentals_html = f"""
-        <div style="margin-top:8px;font-size:14px;color:#000">
-          <div><strong>{f.get('name', sym)}</strong> — {f.get('industry','')}</div>
-          <div style="margin-top:6px">
-            <strong>Fundamental stance:</strong> {f.get('stance','n/a')}
-            <span style="color:#666"> — {f.get('stance_reason','')}</span>
+          <div style="font-size:14px;color:#000;margin-top:8px">
+            <div><strong>{f.get('name', sym)}</strong> {('— ' + f.get('industry','')) if f.get('industry') else ''}</div>
+            <div style="margin-top:6px"><strong>Fundamental stance:</strong> {f.get('stance','n/a')}
+              <span style="color:#666"> — {f.get('stance_reason','')}</span>
+            </div>
+            <div style="margin-top:6px"><strong>Valuation:</strong> P/E {f.get('pe','n/a')}, P/S {f.get('ps','n/a')}, EV/EBITDA {f.get('ev_ebitda','n/a')}</div>
+            <div style="margin-top:4px"><strong>Margins:</strong> Op {f.get('op_margin','n/a')}, Net {f.get('net_margin','n/a')}</div>
+            <div style="margin-top:4px"><strong>Growth:</strong> Rev {f.get('rev_growth','n/a')}, EPS {f.get('eps_growth','n/a')}</div>
+            <div style="margin-top:4px"><strong>Leverage:</strong> Debt/Equity {f.get('debt_eq','n/a')}</div>
           </div>
-          <div style="margin-top:6px"><strong>Valuation:</strong>
-            P/E {f.get('pe','n/a')}, P/S {f.get('ps','n/a')}, EV/EBITDA {f.get('ev_ebitda','n/a')}
-          </div>
-          <div><strong>Margins:</strong>
-            Op {f.get('op_margin','n/a')}, Net {f.get('net_margin','n/a')}
-          </div>
-          <div><strong>Growth:</strong>
-            Rev {f.get('rev_growth','n/a')}, EPS {f.get('eps_growth','n/a')}
-          </div>
-          <div><strong>Leverage:</strong>
-            Debt/Equity {f.get('debt_eq','n/a')}
-          </div>
-        </div>
         """
 
-        def news_list(items: List[Dict[str, str]]) -> str:
-            if not items:
-                return "<p style='color:#666'><em>No recent items.</em></p>"
-            return "<ul>" + "".join(
-                [f"<li><a href='{n['link']}' target='_blank'>{n['title']}</a></li>" for n in items[:5]]
-            ) + "</ul>"
-
         cards.append(f"""
-        <div style="margin-bottom:16px;padding:12px;border:1px solid #ddd;border-radius:8px">
-          <div style="font-size:16px;font-weight:bold">{sym}</div>
-          <div style="margin-top:6px;font-size:13px">{links_html}</div>
-          {fundamentals_html}
-          <div style="margin-top:10px"><strong>News</strong></div>
-          {news_list(news.get("cnbc", []))}
-        </div>
+          <div style="margin-bottom:14px;padding:12px;border:1px solid #ddd;border-radius:10px">
+            <div style="font-size:16px;font-weight:bold;color:#000">{sym}</div>
+            <div style="font-size:13px;margin-top:6px">{links_html}</div>
+            {fundamentals_html}
+
+            <div style="margin-top:10px;color:#000"><strong>CNBC mentions</strong></div>
+            {news_list(cnbc_items)}
+
+            <div style="margin-top:10px;color:#000"><strong>Web buzz</strong></div>
+            {news_list(buzz_items)}
+          </div>
         """)
 
-    research_html = "".join(cards) if cards else "<p><em>No research today.</em></p>"
+    research_section_html = "".join(cards) if cards else "<p><em>No research pack today.</em></p>"
 
-    # -------- Sub-$5 stocks --------
-    penny = sections.get("sub5", [])
-    if penny:
-        penny_html = table(
-            [["Symbol", "Price", "Reason"]] +
-            [[x["symbol"], x["price"], x["reason"]] for x in penny]
-        )
+    # Sub-$5 table
+    sub5 = sections.get("sub5", [])
+    if sub5:
+        sub5_rows = [["Symbol", "Price", "Score", "Why (signals)"]]
+        for x in sub5:
+            sub5_rows.append([x.get("symbol",""), x.get("price",""), x.get("score",""), x.get("reason","")])
+        sub5_html = table(sub5_rows)
     else:
-        penny_html = "<p><em>No candidates today.</em></p>"
+        sub5_html = "<p><em>No candidates today (filters are strict).</em></p>"
 
     html = f"""
-    <div style="font-family:Arial,sans-serif;color:#000;max-width:980px;margin:0 auto">
-      <h2>{title}</h2>
-      <p style="color:#555;font-size:13px">
-        Automated digest using technical + fundamental signals. Not investment advice.
+    <div style="font-family:Arial,sans-serif;line-height:1.45;max-width:980px;margin:0 auto;color:#000">
+      <h2 style="margin-bottom:6px">{title}</h2>
+      <p style="margin-top:0;color:#555;font-size:13px">
+        Automated digest using rule-based technical signals + fundamentals + news heuristics. Not investment advice.
       </p>
 
-      <h3>Top focus today</h3>
+      <h3 style="margin-top:18px">Top focus today</h3>
       {top_focus_html}
 
-      <h3>Market pulse</h3>
+      <h3 style="margin-top:18px">Market pulse</h3>
       {table(market_rows)}
 
-      <h3>Research pack</h3>
-      {research_html}
+      <h3 style="margin-top:18px">Research pack (fundamentals + links + news)</h3>
+      {research_section_html}
 
-      <h3>Your holdings</h3>
+      <h3 style="margin-top:18px">Your holdings</h3>
       {table(holdings_rows)}
 
-      <h3>Risky watchlist</h3>
+      <h3 style="margin-top:18px">Risky watchlist</h3>
       {table(risky_rows)}
 
-      <h3>Sub-$5 stocks with potential</h3>
-      {penny_html}
+      <h3 style="margin-top:18px">Sub-$5 watch (iterative screener)</h3>
+      <p style="color:#555;font-size:13px;margin-top:0">
+        Generated daily from the live US symbol list; ranked by fundamentals + news activity + “innovation” keyword heuristics.
+        Treat as a research funnel, not a buy list.
+      </p>
+      {sub5_html}
     </div>
     """
 
-    return {
-        "subject": f"Stockshark Digest — {subject_dt.strftime('%a %b %d')}",
-        "html": html,
-    }
+    subject = f"Stockshark Digest — {subject_dt.strftime('%a %b %d')}"
+    return {"subject": subject, "html": html}
 
