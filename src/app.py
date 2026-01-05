@@ -15,6 +15,9 @@ from src.data.fundamentals import fetch_fundamentals
 from src.data.news import fetch_cnbc_mentions, fetch_web_buzz
 from src.render.research_links import research_links
 
+from src.data.symbol_directory import fetch_us_listed_symbols
+from src.universe.sub5_screener import build_sub5_candidates
+
 
 def _safe_pct_change(quote: Dict[str, Any]) -> float:
     try:
@@ -49,9 +52,6 @@ def main() -> None:
     th = settings["thresholds"]
     wording = settings["wording"]
 
-    # Optional: put an instagram handle in settings.yml:
-    # social:
-    #   instagram_handle: "stocksharknews"
     instagram_handle = (settings.get("social", {}) or {}).get("instagram_handle", "")
 
     core = watchlists.get("core", [])
@@ -134,16 +134,13 @@ def main() -> None:
     flagged_risky = [x["symbol"] for x in risky_out if x.get("risk") in ("WARN", "CRITICAL")]
     research_symbols = list(dict.fromkeys(conviction + flagged_risky))
 
-    # ------------------ Fundamentals + News + Links ------------------
     fundamentals_by_symbol: dict[str, dict[str, str]] = {}
     links_by_symbol: dict[str, dict[str, str]] = {}
     news_by_symbol: dict[str, dict[str, list[dict[str, str]]]] = {}
 
     for sym in research_symbols:
-        # Links (include Instagram profile link if set)
         links_by_symbol[sym] = research_links(sym, instagram_handle=instagram_handle or None)
 
-        # Fundamentals (Finnhub)
         f = fetch_fundamentals(client, sym)
         if f:
             fundamentals_by_symbol[sym] = {
@@ -162,25 +159,8 @@ def main() -> None:
                 "stance_reason": f.stance_reason,
             }
         else:
-            fundamentals_by_symbol[sym] = {
-                "name": sym,
-                "industry": "",
-                "market_cap": "n/a",
-                "pe": "n/a",
-                "ps": "n/a",
-                "ev_ebitda": "n/a",
-                "op_margin": "n/a",
-                "net_margin": "n/a",
-                "rev_growth": "n/a",
-                "eps_growth": "n/a",
-                "debt_eq": "n/a",
-                "stance": "n/a",
-                "stance_reason": "No fundamentals returned",
-            }
+            fundamentals_by_symbol[sym] = {"name": sym, "industry": "", "stance": "n/a", "stance_reason": "No fundamentals returned"}
 
-        # News buckets (Google News RSS)
-        # - CNBC-only
-        # - General web buzz
         try:
             cnbc = fetch_cnbc_mentions(sym, max_items=int((settings.get("news", {}) or {}).get("max_items", 4)))
         except Exception:
@@ -194,6 +174,19 @@ def main() -> None:
             "cnbc": [{"title": h.title, "link": h.link, "source": h.source} for h in cnbc],
             "buzz": [{"title": h.title, "link": h.link, "source": h.source} for h in buzz],
         }
+
+    # ------------------ ITERATIVE sub-$5 screener ------------------
+    # Pull the live US symbol list from Nasdaq Trader symbol directory files. :contentReference[oaicite:4]{index=4}
+    # Then screen sub-$5 + rank by fundamentals + news/innovation.
+    sub5_cfg = settings.get("sub5", {}) or {}
+    sub5_max_universe = int(sub5_cfg.get("max_universe", 800))   # limit runtime
+    sub5_top_n = int(sub5_cfg.get("top_n", 10))
+
+    all_listed = fetch_us_listed_symbols(include_etfs=False)
+    # Keep a manageable slice (you can later randomize or rotate if you want broader coverage)
+    universe_symbols = [x.symbol for x in all_listed][:sub5_max_universe]
+
+    sub5 = build_sub5_candidates(client, universe_symbols, max_out=sub5_top_n)
 
     # ------------------ Render + send ------------------
     now_dt = now_in_tz(tz_name)
@@ -210,7 +203,7 @@ def main() -> None:
             "links_by_symbol": links_by_symbol,
             "news_by_symbol": news_by_symbol,
             "fundamentals_by_symbol": fundamentals_by_symbol,
-            "instagram_handle": instagram_handle,
+            "sub5": sub5,
         },
     )
 
