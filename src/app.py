@@ -10,6 +10,10 @@ from src.data.market import fetch_daily_history, fetch_quotes
 from src.signals.scoring import compute_signals
 from src.render.email_template import render_email
 from src.notify.sendgrid_email import send_email
+from src.data.fundamentals import fetch_fundamentals
+from src.data.news import fetch_company_news
+from src.render.research_links import research_links
+
 
 
 def _safe_pct_change(quote: Dict[str, Any]) -> float:
@@ -144,6 +148,60 @@ def main() -> None:
     # Top focus = up to 5 most important triggered alerts
     top_focus = _sort_focus(triggered)[:5]
 
+# Research pack symbols: always include conviction + flagged risky names
+flagged_risky = [x["symbol"] for x in risky_out if x.get("risk") in ("WARN", "CRITICAL")]
+research_symbols = list(dict.fromkeys(conviction + flagged_risky))
+
+fundamentals_by_symbol: dict[str, dict[str, str]] = {}
+news_by_symbol: dict[str, list[dict[str, str]]] = {}
+links_by_symbol: dict[str, dict[str, str]] = {}
+
+for sym in research_symbols:
+    # Links
+    links_by_symbol[sym] = research_links(sym)
+
+    # Fundamentals (best-effort)
+    f = fetch_fundamentals(client, sym)
+    if f:
+        fundamentals_by_symbol[sym] = {
+            "name": f.name,
+            "industry": f.industry,
+            "market_cap": f"{f.market_cap:.1f}B" if isinstance(f.market_cap, (int, float)) else "n/a",
+            "pe": f"{f.pe_ttm:.1f}" if f.pe_ttm is not None else "n/a",
+            "ps": f"{f.ps_ttm:.1f}" if f.ps_ttm is not None else "n/a",
+            "ev_ebitda": f"{f.ev_ebitda:.1f}" if f.ev_ebitda is not None else "n/a",
+            "op_margin": f"{f.operating_margin*100:.1f}%" if f.operating_margin is not None else "n/a",
+            "net_margin": f"{f.net_margin*100:.1f}%" if f.net_margin is not None else "n/a",
+            "rev_growth": f"{f.revenue_growth_yoy*100:.1f}%" if f.revenue_growth_yoy is not None else "n/a",
+            "eps_growth": f"{f.eps_growth_yoy*100:.1f}%" if f.eps_growth_yoy is not None else "n/a",
+            "debt_eq": f"{f.debt_to_equity:.2f}" if f.debt_to_equity is not None else "n/a",
+            "stance": f.stance,
+            "stance_reason": f.stance_reason,
+        }
+    else:
+        fundamentals_by_symbol[sym] = {
+            "name": sym,
+            "industry": "",
+            "market_cap": "n/a",
+            "pe": "n/a",
+            "ps": "n/a",
+            "ev_ebitda": "n/a",
+            "op_margin": "n/a",
+            "net_margin": "n/a",
+            "rev_growth": "n/a",
+            "eps_growth": "n/a",
+            "debt_eq": "n/a",
+            "stance": "n/a",
+            "stance_reason": "No fundamentals returned",
+        }
+
+    # News (best-effort)
+    try:
+        headlines = fetch_company_news(client, sym, days=3, max_items=5)
+        news_by_symbol[sym] = [{"title": h.title, "link": h.link, "source": h.source} for h in headlines]
+    except Exception:
+        news_by_symbol[sym] = []
+
     # ---- Render + send ----
     now_dt = now_in_tz(tz_name)
     email = render_email(
@@ -168,4 +226,6 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+
+
 
