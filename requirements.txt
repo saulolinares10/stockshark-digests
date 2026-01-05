@@ -6,4 +6,5 @@ sendgrid==6.11.0
 pytz==2024.1
 yfinance==0.2.43
 pandas-datareader==0.10.0
+feedparser==6.0.11
 
