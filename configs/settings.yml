@@ -25,3 +25,7 @@ news:
 social:
   instagram_handle: "stocksharknews"
 
+sub5:
+  max_universe: 800
+  top_n: 10
+
