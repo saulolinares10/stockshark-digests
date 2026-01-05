@@ -2,7 +2,7 @@ name: Stockshark Email Digest
 
 on:
   schedule:
-    - cron: "5 13 * * 1-5"  # weekdays, UTC
+    - cron: "5 13 * * *"   # daily at 13:05 UTC (~8:05am ET standard time)
   workflow_dispatch: {}
 
 jobs:
